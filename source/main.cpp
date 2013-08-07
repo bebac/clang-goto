@@ -3,7 +3,6 @@
 #include <json/json.h>
 // ----------------------------------------------------------------------------
 #include <clang-c/Index.h>
-#include <clang-c/CXCompilationDatabase.h>
 // ----------------------------------------------------------------------------
 #include <iostream>
 #include <iomanip>
