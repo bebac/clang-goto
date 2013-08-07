@@ -1,11 +1,13 @@
 // ----------------------------------------------------------------------------
 #include <program_options.h>
+#include <json/json.h>
 // ----------------------------------------------------------------------------
 #include <clang-c/Index.h>
 #include <clang-c/CXCompilationDatabase.h>
 // ----------------------------------------------------------------------------
 #include <iostream>
 #include <iomanip>
+#include <fstream>
 #include <iterator>
 #include <string>
 #include <stdexcept>
@@ -17,18 +19,21 @@ public:
     options()
         :
         help(false),
-        //compilation_db("."),
+        config(".clang-goto"),
         location(),
         check(false)
     {
         add('h', "help", "display this message", help);
-        //add('d', "compilation-db", "compilation database file", compilation_db, "DIR");
-        add('l', "location", "<filename>:<line>:<column> of a c/c++ translation unit", location, "FILE");
-        add(-1,  "check", "parse location filename and print clang diagnostics", check);
+        add('c', "config", "json configuration file, default is .clang-goto", config, "FILE");
+        add('l', "location", "<filename>:<line>:<column> of a c/c++ translation unit\n"
+                 "F.ex. source/main.cpp:12:8", location, "FILE");
+        add(-1,  "check", "parse location <filename> and print clang diagnostics.\n"
+                 "Can f.ex. be used to check that all includes are specified\n"
+                 "Note: No lookup is performed.", check);
     }
 public:
     bool        help;
-    //std::string compilation_db;
+    std::string config;
     std::string location;
     bool        check;
 };
@@ -63,12 +68,32 @@ void dump_tu(const CXTranslationUnit& tu)
 void print_usage(const options& options)
 {
     std::cout
-        << "Usage: example [OPTION...]" << std::endl
+        << "Usage: clang-goto [OPTION...]" << std::endl
         << std::endl
-        << "Example application" << std::endl
+        << "clang-goto application. Given a source file location, it will" << std::endl
+        << "take you to the definition/declaration of that location." << std::endl
         << std::endl
         << "Available option:" << std::endl
         << options << std::endl;
+}
+
+// ----------------------------------------------------------------------------
+json::object read_json_configuration(const std::string& filename)
+{
+    std::ifstream file(filename);
+
+    std::string s((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
+
+    json::value  v;
+    json::parser parser(v);
+
+    parser.parse(s.c_str(), s.length());
+
+    if ( !v.is_object() ) {
+        throw std::runtime_error("json configuration must be an object");
+    }
+
+    return std::move(v.as_object());
 }
 
 // ----------------------------------------------------------------------------
@@ -133,8 +158,7 @@ int main(int argc, char *argv[])
     }
     catch(const program_options::error& err)
     {
-        std::cout << err.what() << std::endl
-                  << "try: example --help" << std::endl;
+        std::cout << err.what() << std::endl << "try: clang-goto --help" << std::endl;
         exit(1);
     }
 
@@ -142,13 +166,32 @@ int main(int argc, char *argv[])
     {
         CXIndex index = clang_createIndex( 0, 0 );
 
-        const char* args[] = { "-ObjC++", "-std=c++11", "-Ivendor/program-options/include" };
-        //const char* args[] = { "-std=c++11", "-Ivendor/program-options/include" };
-
         std::tuple<std::string, unsigned, unsigned> location = decode_location(options.location);
 
+        auto config = read_json_configuration(options.config);
+        auto json_args = config["args"];
+
+        //
+        // Convert json args to a const char* array we can pass to parseTranslationUnit.
+        //
+        std::vector<const char*> args;
+
+        if ( !json_args.is_null() )
+        {
+            if ( !json_args.is_array() ) {
+                throw std::runtime_error("json configuration \"args\" must be an array");
+            }
+
+            for ( auto& arg : json_args.as_array() ) {
+                args.push_back(arg.as_string().c_str());
+            }
+        }
+        else {
+            std::cerr << "WARNING - json configuration contains no \"args\" member" << std::endl;
+        }
+
         CXTranslationUnit tu;
-        tu = clang_parseTranslationUnit(index, std::get<0>(location).c_str(), args, 3, 0, 0, 0);
+        tu = clang_parseTranslationUnit(index, std::get<0>(location).c_str(), &args[0], args.size(), 0, 0, 0);
 
         if ( options.check )
         {
@@ -158,6 +201,7 @@ int main(int argc, char *argv[])
                 CXString s = clang_formatDiagnostic(diagnostic, clang_defaultDiagnosticDisplayOptions());
 
                 std::cerr << clang_getCString(s) << std::endl;
+
                 clang_disposeString(s);
             }
             exit(1);
@@ -165,6 +209,7 @@ int main(int argc, char *argv[])
 
         std::cerr << "filename=" << std::get<0>(location) << ", line=" << std::get<1>(location) << ", column=" << std::get<2>(location) << std::endl;
 
+        // Get a cursor to the given location.
         CXFile file = clang_getFile(tu, std::get<0>(location).c_str());
         CXSourceLocation loc = clang_getLocation(tu, file, std::get<1>(location), std::get<2>(location));
         CXCursor cursor = clang_getCursor(tu, loc);
@@ -173,6 +218,7 @@ int main(int argc, char *argv[])
             throw std::runtime_error("invalid source location");
         }
 
+#if 0
         //CXString info = clang_getCursorUSR(cursor);
         CXString info = clang_getCursorDisplayName(cursor);
         CXCursorKind kind = clang_getCursorKind(cursor);
@@ -182,6 +228,16 @@ int main(int argc, char *argv[])
         //CXType type = clang_getCursorType(cursor);
 
         //std::cout << "kind=" << kind << ", info=" << clang_getCString(info) << std::endl;
+
+        clang_disposeString(info);
+#endif
+
+        //
+        // Now do the lookup.
+        //
+        // NOTE: Not sure what the best approach is here. First trying get-definition then
+        //       get-referenced seems to do pretty much what I want.
+        //
 
         CXCursor res_cursor;
 
@@ -198,11 +254,14 @@ int main(int argc, char *argv[])
             exit(1);
         }
 
+        // Output the location.
         CXSourceLocation res_loc = clang_getCursorLocation(res_cursor);
         print_location(res_loc);
 
-        //std::cout << clang_getCursorKind(cursor) << " " << type.kind << " " << clang_getCString(info) << std::endl;
-        clang_disposeString(info);
+        // Cleanup.
+        clang_disposeIndex(index);
+        clang_disposeTranslationUnit(tu);
+
         exit(0);
     }
     catch(const std::exception& err)

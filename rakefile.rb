@@ -20,10 +20,14 @@ ENV["CPPFLAGS"] = %q(-std=c++11)
 program_options = Rake::StaticLibraryTask.new("vendor/program-options/program-options.yml")
 
 # -----------------------------------------------------------------------------
+json = Rake::StaticLibraryTask.new("vendor/json/json.yml")
+
+# -----------------------------------------------------------------------------
 spec = Rake::ExecutableSpecification.new do |s|
     s.name = 'clang-goto'
     s.includes.add %w(
         vendor/program-options/include
+        vendor/json/include
     )
     s.libincludes.add %w(
         build
@@ -31,7 +35,7 @@ spec = Rake::ExecutableSpecification.new do |s|
     s.sources.add %w(
         source/main.cpp
     )
-    s.libraries += [ program_options ] + %w(clang)
+    s.libraries += [ program_options, json ] + %w(clang)
 end
 # -----------------------------------------------------------------------------
 Rake::ExecutableTask.new(:"clang-goto", spec)
