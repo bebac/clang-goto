@@ -1,10 +1,39 @@
 # -----------------------------------------------------------------------------
 require 'rake/clean'
 require 'rake/tasklib'
-# -----------------------------------------------------------------------------
-require './rakelib/lib/ctasklib'
+require 'rbconfig'
 
 # -----------------------------------------------------------------------------
+def windows?
+    RbConfig::CONFIG['target_os'] =~ /mswin|mingw|cygwin/
+end
+
+# -----------------------------------------------------------------------------
+if windows?
+    require './rakelib/lib/ctasklib-msvc'
+else
+    require './rakelib/lib/ctasklib'
+end
+
+# -----------------------------------------------------------------------------
+if windows?
+# -----------------------------------------------------------------------------
+
+case ENV["variant"]
+when "release"
+    ENV["CFLAGS"]  = %q(/c /EHsc /O2 /GA)
+    ENV["LDFLAGS"] = %q(/subsystem:console)
+else
+    ENV["CFLAGS"]  = %q(/c /EHsc /ZI)
+    ENV["LDFLAGS"] = %q(/subsystem:console /debug)
+end
+
+ENV["CPPFLAGS"] = %q()
+
+# -----------------------------------------------------------------------------
+else # gcc
+# -----------------------------------------------------------------------------
+
 case ENV["variant"]
 when "release"
     ENV["CFLAGS"]  = %q(-O2 -Wall -MMD)
@@ -16,10 +45,10 @@ end
 
 ENV["CPPFLAGS"] = %q(-std=c++11)
 
-# -----------------------------------------------------------------------------
-program_options = Rake::StaticLibraryTask.new("vendor/program-options/program-options.yml")
+end
 
 # -----------------------------------------------------------------------------
+popt = Rake::StaticLibraryTask.new("vendor/program-options/program-options.yml")
 json = Rake::StaticLibraryTask.new("vendor/json/json.yml")
 
 # -----------------------------------------------------------------------------
@@ -35,7 +64,7 @@ spec = Rake::ExecutableSpecification.new do |s|
     s.sources.add %w(
         source/main.cpp
     )
-    s.libraries += [ program_options, json ] + %w(clang)
+    s.libraries += [ popt, json ] + %w(clang)
 end
 # -----------------------------------------------------------------------------
 Rake::ExecutableTask.new(:"clang-goto", spec)
