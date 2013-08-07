@@ -220,6 +220,9 @@ namespace json
           // pass completed value to new stack top.
           top->accept(v);
         }
+        else {
+          break;
+        }
       }
     }
 
