@@ -6,6 +6,9 @@
 #include <memory>
 #include <cassert>
 // ----------------------------------------------------------------------------
+#include <json/details/json_platform.h>
+
+// ----------------------------------------------------------------------------
 namespace json
 {
   enum class type
@@ -24,9 +27,15 @@ namespace json
 
   class value
   {
+#ifdef __JSON__HAS_CPP_USING_SUPPORT
     using str_ptr = std::string*;
     using arr_ptr = array*;
     using obj_ptr = object*;
+#else
+    typedef std::string* str_ptr;
+    typedef array* arr_ptr;
+    typedef object* obj_ptr;
+#endif
   public:
     value() : type_(type::nul) {}
   public:

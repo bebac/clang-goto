@@ -7,6 +7,7 @@
 #include <json/json_object.h>
 // ----------------------------------------------------------------------------
 #include <json/details/json_parser_state.h>
+#include <json/details/json_platform.h>
 // ----------------------------------------------------------------------------
 #include <memory>
 #include <stack>
@@ -18,7 +19,11 @@ namespace json
   {
     friend class parser_state_base;
   private:
+#ifdef __JSON__HAS_CPP_USING_SUPPORT
     using state_ptr = std::unique_ptr<parser_state_base>;
+#else
+    typedef std::unique_ptr<parser_state_base> state_ptr;
+#endif
   public:
     parser(value& value);
   public:

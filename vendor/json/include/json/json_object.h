@@ -4,6 +4,8 @@
 // ----------------------------------------------------------------------------
 #include <json/json_value.h>
 // ----------------------------------------------------------------------------
+#include <json/details/json_platform.h>
+// ----------------------------------------------------------------------------
 #include <unordered_map>
 // ----------------------------------------------------------------------------
 namespace json
@@ -13,10 +15,16 @@ namespace json
   class object
   {
   public:
+#ifdef __JSON__HAS_CPP_USING_SUPPORT
     using member_map = std::unordered_map<std::string, value>;
+#else
+    typedef std::unordered_map<std::string, value> member_map;
+#endif
   public:
     object() : value_() {}
+#ifdef __JSON__HAS_STD_INITIALIZER_LIST
     object(std::initializer_list<member_map::value_type> v) : value_(v) {}
+#endif
   public:
     virtual ~object() {}
   public:

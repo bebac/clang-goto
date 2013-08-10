@@ -4,6 +4,8 @@
 // ----------------------------------------------------------------------------
 #include <json/json_value.h>
 // ----------------------------------------------------------------------------
+#include <json/details/json_platform.h>
+// ----------------------------------------------------------------------------
 #include <vector>
 #include <iostream>
 // ----------------------------------------------------------------------------
@@ -12,7 +14,11 @@ namespace json
   class array
   {
   public:
+#ifdef __JSON__HAS_CPP_USING_SUPPORT
     using elements = std::vector<value>;
+#else
+    typedef std::vector<value> elements;
+#endif
   public:
     array() : value_()
     {
@@ -23,7 +29,9 @@ namespace json
   public:
     array(array&& other) : value_(std::move(other.value_)) {}
   public:
+#ifdef __JSON__HAS_STD_INITIALIZER_LIST
     array(std::initializer_list<elements::value_type> v) : value_(v) {}
+#endif
   public:
     virtual ~array() {}
   public:
