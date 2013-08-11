@@ -1,0 +1,10 @@
+{
+  "args":
+  [
+    "-ObjC++",
+    "-std=c++11",
+    "-Ivendor/program-options/include",
+    "-Ivendor/json/include",
+    "-Ivendor/json/test/catch"
+  ]
+}
